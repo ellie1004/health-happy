@@ -75,8 +75,11 @@ const QS = [
    opts:["① 전혀 피운 적 없거나 10년 전에 끊었다","② 5년 전에 끊었다","③ 끊은 지 1개월~5년 되었다","④ 하루 1갑 미만 피운다","⑤ 하루 1갑 이상 피운다"]},
   {id:"df",      cat:"음주",     em:"🍺", txt:"술을 얼마나 자주 마십니까?", type:"single",
    opts:["① 한 달에 1번 미만","② 한 달에 1번 정도","③ 한 달에 2~4번","④ 일주일에 2~3번","⑤ 일주일에 4번 이상","⑥ 해당 없음"]},
+  {id:"dt",      cat:"음주",     em:"🍶", txt:"주로 마시는 술의 종류는 무엇입니까?", type:"single",
+   opts:["① 소주","② 맥주","③ 와인","④ 막걸리","⑤ 기타","⑥ 술을 마시지 않음"]},
   {id:"da",      cat:"음주",     em:"🥂", txt:"한 번에 술을 얼마나 마십니까?", type:"single",
-   opts:["① 1~2잔","② 3~4잔","③ 5~6잔","④ 7~9잔","⑤ 10잔 이상","⑥ 해당 없음"]},
+   hint:"소주 1잔(50ml) ≈ 맥주 1캔(355ml) ≈ 와인 1잔(120ml)",
+   opts:["① 소주 1~2잔 / 맥주 1캔 이하","② 소주 3~4잔 / 맥주 2캔","③ 소주 5~6잔 / 맥주 3~4캔","④ 소주 7~9잔 / 맥주 5~6캔","⑤ 소주 10잔 이상 / 맥주 7캔 이상","⑥ 해당 없음"]},
   {id:"salt",    cat:"영양",     em:"🧂", txt:"평상시 음식을 어떻게 드십니까?", type:"single",
    opts:["① 아주 짜게 먹는다","② 약간 짜게 먹는다","③ 보통으로 먹는다","④ 약간 싱겁게 먹는다","⑤ 아주 싱겁게 먹는다"]},
   {id:"bk",      cat:"영양",     em:"🍳", txt:"최근 1년간 아침 식사를 일주일에 몇 회 하셨습니까?", type:"single",
@@ -134,39 +137,80 @@ const CHAR_MSGS = {
   result_bad: "건강관리가 필요해요! 함께 해봐요 💙",
 };
 
-// ── 건강나이 계산 ────────────────────────────────────────
+// ── 건강나이 계산 (양방향: 좋은 습관 → 젊어짐, 나쁜 습관 → 늙어짐) ──
+// 근거: WHO Physical Activity Guidelines 2020, GBD Alcohol Study 2018 (Lancet),
+//       Jha et al. NEJM 2013 (금연), npj Aging 2025 (신체활동-생물학적 나이),
+//       Ofori-Asenso et al. JAHA 2019 (아침식사), Walker SLEEP 2021 (수면)
 function calcResult(ans, gender, realAge) {
   const ra = realAge || 45;
   const df=ans.df, da=ans.da;
-  let drisk = false;
-  if(df!==undefined&&da!==undefined&&df!==5&&da!==5)
-    drisk = (df>=3) && (da>=(gender==="female"?1:2));
+  let drisk=false, dbonus=false;
+  if(df!==undefined&&da!==undefined){
+    if(df===5||da===5) dbonus=true;
+    else{ drisk=(df>=3)&&(da>=(gender==="female"?1:2)); if(df<=1&&da<=1) dbonus=true; }
+  }
   const dm=[0,1,2,3,4,5,6,7], tm=[0,10,20,30,40,50,60,70];
   const exm = (ans.ed!==undefined&&ans.et!==undefined) ? dm[ans.ed]*tm[ans.et] : 0;
   const bd=ans.bmi; let bv=null;
   if(bd&&bd.h&&bd.w) bv = bd.w/((bd.h/100)**2);
   const meds=ans.meds||[]; const hasMed=meds.length>0&&!meds.includes(0);
   const R = {
-    smoke:    {l:"흡연",    e:"🚬",risk:ans.smoke!==undefined&&ans.smoke>=3,  msg:"흡연은 폐암·심혈관 질환의 주요 원인입니다. 금연 클리닉을 이용해보세요.",                   d:ans.smoke===3?3:5},
-    drink:    {l:"음주",    e:"🍺",risk:drisk,                                  msg:"고위험 음주 상태입니다. 음주 빈도와 1회 음주량을 줄여주세요.",                             d:3},
-    salt:     {l:"짠 음식", e:"🧂",risk:ans.salt!==undefined&&ans.salt<=1,      msg:"짠 음식은 고혈압·심혈관 질환 위험을 높입니다. 싱겁게 드세요.",                           d:2},
-    breakfast:{l:"아침 결식",e:"🍳",risk:ans.bk!==undefined&&ans.bk>=1,         msg:"아침 결식은 비만·당뇨 위험을 높입니다. 조금이라도 드세요.",                             d:1},
-    instant:  {l:"가공식품",e:"🍟",risk:ans.ins!==undefined&&ans.ins>=2,         msg:"가공·배달음식 과다 섭취는 나트륨·지방 과잉으로 이어집니다.",                           d:1},
-    exercise: {l:"운동 부족",e:"🏃",risk:exm<70,                                msg:"운동이 부족합니다. 매일 30분 빠르게 걷기부터 시작해보세요!",                           d:exm===0?4:2},
-    bmi:      {l:"체중",    e:"⚖️",risk:bv!==null&&(bv<18.5||bv>=23),           msg:bv===null?"":bv<18.5?"저체중입니다. 균형 잡힌 식사로 적정 체중을 유지하세요.":bv<25?"과체중입니다. 운동과 식이 조절이 필요합니다.":"비만입니다. 당뇨·고혈압 위험이 높습니다.", d:bv!==null&&bv>=25?4:2},
-    handwash: {l:"손씻기",  e:"🧼",risk:ans.hw!==undefined&&ans.hw>=2,           msg:"손씻기를 더 자주 해주세요. 감염병 예방에 효과적입니다.",                               d:1},
-    vaccine:  {l:"예방접종",e:"💉",risk:ans.vac===1,                             msg:"인플루엔자 예방접종을 매년 받으시기 바랍니다.",                                         d:1},
-    sleep:    {l:"수면",    e:"😴",risk:ans.slhr===0,                            msg:"수면이 매우 부족합니다. 7~8시간 수면을 목표로 하세요.",                                d:2},
-    checkup:  {l:"건강검진",e:"🏥",risk:ans.checkup===1,                         msg:"2년마다 정기 건강검진을 받으시면 질병을 조기 발견할 수 있습니다.",                     d:1},
+    smoke:{l:"흡연",e:"🚬",
+      risk:ans.smoke!==undefined&&ans.smoke>=3, bonus:ans.smoke===0,
+      msg:ans.smoke>=3?"흡연은 폐암·심혈관 질환의 주요 원인입니다. 금연 클리닉을 이용해보세요.":"비흡연·장기 금연이 건강수명을 지키고 있습니다!",
+      d:ans.smoke===4?5:ans.smoke===3?3:0, b:ans.smoke===0?-1:0},
+    drink:{l:"음주",e:"🍺",
+      risk:drisk, bonus:dbonus,
+      msg:drisk?"고위험 음주 상태입니다. 음주 빈도와 1회 음주량을 줄여주세요.":"절주·비음주 습관이 건강수명을 늘립니다!",
+      d:drisk?3:0, b:dbonus?-1:0},
+    salt:{l:"짠 음식",e:"🧂",
+      risk:ans.salt!==undefined&&ans.salt<=1, bonus:ans.salt!==undefined&&ans.salt>=3,
+      msg:ans.salt<=1?"짠 음식은 고혈압·심혈관 질환 위험을 높입니다.":"싱겁게 먹는 식습관이 혈압 관리에 도움됩니다!",
+      d:ans.salt<=1?2:0, b:ans.salt>=3?-1:0},
+    breakfast:{l:"아침식사",e:"🍳",
+      risk:ans.bk!==undefined&&ans.bk>=2, bonus:ans.bk===0,
+      msg:ans.bk>=2?"아침 결식은 비만·당뇨 위험을 높입니다.":"규칙적 아침식사가 대사 건강을 지켜줍니다!",
+      d:ans.bk>=3?2:ans.bk>=2?1:0, b:ans.bk===0?-1:0},
+    instant:{l:"가공식품",e:"🍟",
+      risk:ans.ins!==undefined&&ans.ins>=2, bonus:ans.ins===0,
+      msg:ans.ins>=2?"가공·배달음식 과다 섭취는 나트륨·지방 과잉으로 이어집니다.":"가공식품을 줄이는 식습관이 건강에 좋습니다!",
+      d:ans.ins>=3?2:ans.ins>=2?1:0, b:ans.ins===0?-1:0},
+    exercise:{l:"운동",e:"🏃",
+      risk:exm<150, bonus:exm>=300,
+      msg:exm===0?"운동이 전혀 없습니다. 매일 30분 걷기부터 시작해보세요!":exm<150?"WHO 권장 주 150분에 미달합니다.":exm>=300?"주 300분 이상 운동으로 추가 건강편익을 얻고 있습니다! 🏆":"적정 운동량을 유지하고 있습니다.",
+      d:exm===0?4:exm<70?3:exm<150?1:0, b:exm>=300?-2:0},
+    bmi:{l:"체중",e:"⚖️",
+      risk:bv!==null&&(bv<18.5||bv>=25), bonus:bv!==null&&bv>=18.5&&bv<23,
+      msg:bv===null?"":bv<18.5?"저체중입니다. 균형 잡힌 식사가 필요합니다.":bv>=25?"비만입니다. 당뇨·고혈압 위험이 높습니다.":bv>=23?"과체중입니다. 운동과 식이 조절이 필요합니다.":"적정 체중을 유지하고 있습니다!",
+      d:bv!==null&&bv>=25?4:bv!==null&&(bv<18.5||bv>=23)?2:0, b:bv!==null&&bv>=18.5&&bv<23?-1:0},
+    handwash:{l:"손씻기",e:"🧼",
+      risk:ans.hw!==undefined&&ans.hw>=2, bonus:ans.hw===0,
+      msg:ans.hw>=2?"손씻기를 더 자주 해주세요.":"올바른 손씻기 습관이 감염병을 예방합니다!",
+      d:ans.hw>=2?1:0, b:ans.hw===0?-1:0},
+    vaccine:{l:"예방접종",e:"💉",
+      risk:ans.vac===1, bonus:ans.vac===0,
+      msg:ans.vac===1?"인플루엔자 예방접종을 매년 받으시기 바랍니다.":"예방접종으로 건강을 지키고 있습니다!",
+      d:ans.vac===1?1:0, b:ans.vac===0?-1:0},
+    sleep:{l:"수면",e:"😴",
+      risk:ans.slhr!==undefined&&(ans.slhr<=1||ans.slhr>=4), bonus:ans.slhr===3,
+      msg:ans.slhr<=1?"수면이 부족합니다. 7~8시간 수면을 목표로 하세요.":ans.slhr>=4?"과다 수면도 건강에 좋지 않습니다.":"7~8시간 적정 수면이 건강수명에 기여합니다!",
+      d:ans.slhr===0?2:(ans.slhr<=1||ans.slhr>=4)?1:0, b:ans.slhr===3?-1:0},
+    checkup:{l:"건강검진",e:"🏥",
+      risk:ans.checkup===1, bonus:ans.checkup===0,
+      msg:ans.checkup===1?"정기 건강검진을 받으시면 질병을 조기 발견할 수 있습니다.":"정기 건강검진으로 질병 예방에 앞서가고 있습니다!",
+      d:ans.checkup===1?1:0, b:ans.checkup===0?-1:0},
   };
   const rc = Object.values(R).filter(r=>r.risk).length;
-  let delta = 0; Object.values(R).forEach(r=>{if(r.risk)delta+=(r.d||1);});
+  const bc = Object.values(R).filter(r=>r.bonus).length;
+  let delta = 0;
+  Object.values(R).forEach(r=>{ if(r.risk) delta+=(r.d||0); if(r.bonus) delta+=(r.b||0); });
   const SATS = ["sat1","sat2","sat3","sat4","sat5","sat6"];
   const stot = SATS.reduce((s,k)=>s+(ans[k]!==undefined?ans[k]+1:3),0);
   if(stot<12) delta+=2;
+  else if(stot>=24) delta-=1;
   const ha = ra+delta;
   const stier = stot>=24?"상위 20% 수준":stot>=18?"상위 40% 수준":stot>=12?"상위 60% 수준":"하위 40% — 정신건강 관리 필요";
-  return {R,rc,ra,ha,delta,stot,stier,meds,hasMed,bv};
+  return {R,rc,bc,ra,ha,delta,stot,stier,meds,hasMed,bv};
 }
 
 // ── 카운트다운 ───────────────────────────────────────────
@@ -334,7 +378,7 @@ export default function App() {
     setCharMsg(CHAR_MSGS.loading); setCharMood("think");
     const msgs=["건강나이 계산 중...","생활습관 분석 중...","약복용 이력 반영 중...","맞춤 프로그램 매칭 중...","결과 완성! ✨"];
     let i=0;
-    const iv=setInterval(()=>{ if(i<msgs.length)setLdMsg(msgs[i++]); else{clearInterval(iv);setPhase("result");setTimeout(()=>{const r=calcResult(ans,gender,realAge);setSatW(((r.stot-6)/24*100));if(r.delta===0){setCharMsg(CHAR_MSGS.result_good);setCharMood("cheer");}else if(r.delta<=4){setCharMsg(CHAR_MSGS.result_warn);setCharMood("happy");}else{setCharMsg(CHAR_MSGS.result_bad);setCharMood("wave");}},400);} },700);
+    const iv=setInterval(()=>{ if(i<msgs.length)setLdMsg(msgs[i++]); else{clearInterval(iv);setPhase("result");setTimeout(()=>{const r=calcResult(ans,gender,realAge);setSatW(((r.stot-6)/24*100));if(r.delta<0){setCharMsg(CHAR_MSGS.result_good);setCharMood("cheer");}else if(r.delta===0){setCharMsg(CHAR_MSGS.result_good);setCharMood("cheer");}else if(r.delta<=4){setCharMsg(CHAR_MSGS.result_warn);setCharMood("happy");}else{setCharMsg(CHAR_MSGS.result_bad);setCharMood("wave");}},400);} },700);
   };
 
   const nextQ = () => { stopTimer(); if(cur>=TOTAL-1){goLoading();return;} setCur(p=>p+1); scrollTop(); };
@@ -363,7 +407,8 @@ export default function App() {
     const np=(ans.nprog||[]).map(i=>NP_LABELS[i]).join(", ");
     const risks=DK.map(k=>r.R[k]).filter(x=>x&&x.risk).map(x=>x.l).join(", ");
     const medStr=r.meds.filter(i=>i!==0).map(i=>MED_ITEMS.find(m=>m.i===i)?.nm).join(", ")||"없음";
-    const txt=[`[2026 내 건강나이 측정 결과]`,`보건소: ${region} | 성별: ${gender==="male"?"남성":"여성"} | 나이: ${realAge}세`,``,`실제 나이: ${r.ra}세 → 건강나이: ${r.ha}세 (▲${r.delta}세)`,`건강 위험요인: ${r.rc}개${risks?" ("+risks+")":""}`,`복용약: ${medStr}`,`생활만족도: ${r.stot}점/30점 (${r.stier})`,np?`필요 프로그램: ${np}`:"",``,`— 2026 지역주민 건강수준 알기`].filter(Boolean).join("\n");
+    const deltaStr=r.delta<0?`▼${Math.abs(r.delta)}세 젊음`:r.delta===0?"동일":`▲${r.delta}세`;
+    const txt=[`[2026 내 건강나이 측정 결과]`,`보건소: ${region} | 성별: ${gender==="male"?"남성":"여성"} | 나이: ${realAge}세`,``,`실제 나이: ${r.ra}세 → 건강나이: ${r.ha}세 (${deltaStr})`,`건강 위험요인: ${r.rc}개${risks?" ("+risks+")":""} | 보호요인: ${r.bc}개`,`복용약: ${medStr}`,`생활만족도: ${r.stot}점/30점 (${r.stier})`,np?`필요 프로그램: ${np}`:"",``,`— 2026 지역주민 건강수준 알기`].filter(Boolean).join("\n");
     navigator.clipboard?.writeText(txt).then(()=>showToast("결과가 복사됐습니다! 📋")).catch(()=>showToast("복사를 지원하지 않는 환경입니다"));
   };
 
@@ -603,18 +648,18 @@ export default function App() {
               </div>
               <div style={{fontSize:13,letterSpacing:".08em",color:GG_TEXT_LIGHT,textTransform:"uppercase",marginBottom:12}}>🎯 나의 건강수준 측정 결과</div>
               <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:24,marginBottom:18}}>
-                {[["실제 나이",r.ra,GG_TEXT_SUB],["→",null,"#ccc"],["건강 나이",r.ha,GG_BLUE]].map(([lbl,val,col],i)=>
+                {[["실제 나이",r.ra,GG_TEXT_SUB],["→",null,"#ccc"],["건강 나이",r.ha,r.delta<0?GG_GREEN:GG_BLUE]].map(([lbl,val,col],i)=>
                   val!==null
                     ? <div key={i} style={{textAlign:"center"}}><div style={{fontSize:13,color:GG_TEXT_LIGHT,marginBottom:5}}>{lbl}</div><div style={{fontSize:56,fontWeight:900,lineHeight:1,color:col,animation:"scoreIn .6s ease"+(i>1?" .2s both":"")}}>{val}</div><div style={{fontSize:14,color:GG_TEXT_LIGHT,marginTop:3}}>세</div></div>
                     : <div key={i} style={{fontSize:28,color:col}}>→</div>
                 )}
               </div>
-              <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 20px",borderRadius:24,fontSize:16,fontWeight:700,marginBottom:12,...(r.delta===0?{background:"rgba(0,166,81,.08)",color:GG_GREEN,border:`1px solid rgba(0,166,81,.2)`}:r.delta<=4?{background:"rgba(217,119,6,.08)",color:"#D97706",border:"1px solid rgba(217,119,6,.2)"}:{background:"rgba(229,52,46,.08)",color:GG_RED,border:`1px solid rgba(229,52,46,.2)`})}}>
-                {r.delta===0?"🎉 건강나이 = 실제 나이!":`▲ ${r.delta}세 더 많아요${r.delta>4?" — 관리가 필요합니다":""}`}
+              <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 20px",borderRadius:24,fontSize:16,fontWeight:700,marginBottom:12,...(r.delta<0?{background:"rgba(0,166,81,.12)",color:GG_GREEN,border:`1px solid rgba(0,166,81,.3)`}:r.delta===0?{background:"rgba(0,166,81,.08)",color:GG_GREEN,border:`1px solid rgba(0,166,81,.2)`}:r.delta<=4?{background:"rgba(217,119,6,.08)",color:"#D97706",border:"1px solid rgba(217,119,6,.2)"}:{background:"rgba(229,52,46,.08)",color:GG_RED,border:`1px solid rgba(229,52,46,.2)`})}}>
+                {r.delta<0?`🏆 ▼ ${Math.abs(r.delta)}세 더 젊어요!`:r.delta===0?"🎉 건강나이 = 실제 나이!":`▲ ${r.delta}세 더 많아요${r.delta>4?" — 관리가 필요합니다":""}`}
               </div>
-              {[{m:0,g:"🌟 훌륭합니다! 건강나이 = 실제 나이",s:"지금의 건강한 생활습관을 계속 유지하세요."},{m:3,g:"😊 건강 관리를 잘 하고 계세요",s:"약간의 위험요인이 있습니다. 개선을 시작해보세요."},{m:6,g:"😐 생활습관 개선이 필요합니다",s:"여러 위험요인이 건강나이를 높이고 있습니다."},{m:9,g:"😟 건강나이가 많이 높습니다",s:"보건소 건강증진 프로그램을 적극 이용해보세요."},{m:99,g:"😔 즉각적인 건강 관리가 필요합니다",s:"보건소 또는 의료기관 방문을 강력히 권고드립니다."}].filter(g=>r.rc<=g.m).slice(0,1).map(g=>(
-                <div key="g"><div style={{fontSize:21,fontWeight:700,color:GG_TEXT}}>{g.g}</div><div style={{fontSize:15,color:GG_TEXT_SUB,marginTop:6}}>{g.s}</div></div>
-              ))}
+              {(()=>{const grades=r.delta<=-5?{g:"🏆 최상급! 건강습관이 매우 우수합니다",s:"뛰어난 생활습관으로 실제 나이보다 훨씬 젊습니다!"}:r.delta<0?{g:"🌟 훌륭합니다! 실제 나이보다 젊어요",s:"좋은 생활습관이 건강나이를 낮추고 있습니다. 계속 유지하세요!"}:r.delta===0?{g:"🌟 훌륭합니다! 건강나이 = 실제 나이",s:"지금의 건강한 생활습관을 계속 유지하세요."}:r.delta<=4?{g:"😊 건강 관리를 잘 하고 계세요",s:"약간의 위험요인이 있습니다. 개선을 시작해보세요."}:r.delta<=8?{g:"😐 생활습관 개선이 필요합니다",s:"여러 위험요인이 건강나이를 높이고 있습니다."}:{g:"😟 건강나이가 많이 높습니다",s:"보건소 건강증진 프로그램을 적극 이용해보세요."};return(
+                <div key="g"><div style={{fontSize:21,fontWeight:700,color:GG_TEXT}}>{grades.g}</div><div style={{fontSize:15,color:GG_TEXT_SUB,marginTop:6}}>{grades.s}</div></div>
+              );})()}
             </div>
           </div>
 
@@ -624,21 +669,22 @@ export default function App() {
               <div style={{background:"#fff",border:`1px solid ${GG_BORDER}`,borderRadius:16,overflow:"hidden",boxShadow:SHADOW_MD}}>
                 <div style={{padding:"12px 16px",background:GG_GRAY,borderBottom:`1px solid ${GG_BORDER}`,display:"flex",justifyContent:"space-between",fontSize:15,color:GG_TEXT_SUB}}>
                   <span>기준 나이: <strong style={{fontSize:20,color:GG_TEXT}}>{r.ra}세</strong></span>
-                  <span>위험요인 {r.rc}개 감지</span>
+                  <span style={{color:r.bc>0?GG_GREEN:GG_TEXT_LIGHT}}>보호 {r.bc}개</span>
+                  <span style={{color:r.rc>0?GG_RED:GG_TEXT_LIGHT}}>위험 {r.rc}개</span>
                 </div>
-                {DK.map((k,idx)=>{const rv=r.R[k];if(!rv)return null;return(
+                {DK.map((k,idx)=>{const rv=r.R[k];if(!rv)return null;const val=rv.risk?(rv.d||0):rv.bonus?(rv.b||0):0;return(
                   <div key={k} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:idx<DK.length-1?`1px solid ${GG_GRAY}`:"none"}}>
                     <span style={{fontSize:20,flexShrink:0}}>{rv.e}</span>
                     <span style={{flex:1,fontSize:16,color:GG_TEXT_SUB}}>{rv.l}</span>
                     <div style={{width:80,height:5,background:GG_GRAY,borderRadius:3,overflow:"hidden"}}>
-                      <div style={{height:5,borderRadius:3,background:rv.risk?GG_RED:GG_GREEN,width:(rv.risk?Math.min(100,(rv.d||1)/5*100):10)+"%",transition:"width .8s ease"}}/>
+                      <div style={{height:5,borderRadius:3,background:rv.risk?GG_RED:rv.bonus?GG_GREEN:"#ddd",width:(rv.risk?Math.min(100,(rv.d||1)/5*100):rv.bonus?Math.min(100,Math.abs(rv.b||1)/2*100):10)+"%",transition:"width .8s ease"}}/>
                     </div>
-                    <span style={{fontSize:16,fontWeight:700,minWidth:40,textAlign:"right",color:rv.risk?GG_RED:"#ccc"}}>{rv.risk?"+"+rv.d+"세":"양호"}</span>
+                    <span style={{fontSize:16,fontWeight:700,minWidth:40,textAlign:"right",color:rv.risk?GG_RED:rv.bonus?GG_GREEN:"#ccc"}}>{rv.risk?"+"+rv.d+"세":rv.bonus?rv.b+"세":"양호"}</span>
                   </div>
                 );})}
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 16px",background:GG_BLUE_LIGHT,borderTop:`2px solid ${GG_BLUE}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 16px",background:r.delta<0?"#ECFDF5":GG_BLUE_LIGHT,borderTop:`2px solid ${r.delta<0?GG_GREEN:GG_BLUE}`}}>
                   <span style={{fontSize:17,fontWeight:700,color:GG_TEXT}}>건강나이 합계</span>
-                  <span style={{fontSize:24,fontWeight:900,color:GG_BLUE}}>{r.ra} + {r.delta} = {r.ha}세</span>
+                  <span style={{fontSize:24,fontWeight:900,color:r.delta<0?GG_GREEN:GG_BLUE}}>{r.ra} {r.delta>=0?"+":"−"} {Math.abs(r.delta)} = {r.ha}세</span>
                 </div>
               </div>
             </div>
@@ -667,7 +713,7 @@ export default function App() {
                   <div key={k} style={{background:"#fff",border:`1px solid ${GG_BORDER}`,borderRadius:12,padding:13,textAlign:"center",boxShadow:SHADOW_SM}}>
                     <div style={{fontSize:24,marginBottom:4}}>{rv.e}</div>
                     <div style={{fontSize:13,color:GG_TEXT_LIGHT}}>{rv.l}</div>
-                    <div style={{fontSize:15,fontWeight:700,marginTop:4,color:rv.risk?GG_RED:GG_GREEN}}>{rv.risk?"✗ 위험":"✓ 양호"}</div>
+                    <div style={{fontSize:15,fontWeight:700,marginTop:4,color:rv.risk?GG_RED:rv.bonus?GG_GREEN:GG_TEXT_LIGHT}}>{rv.risk?"✗ 위험":rv.bonus?"★ 우수":"✓ 양호"}</div>
                   </div>
                 );})}
               </div>
@@ -690,8 +736,20 @@ export default function App() {
             </div>
 
             {/* 개선 필요 항목 */}
+            {/* 보호요인 */}
+            {DK.map(k=>r.R[k]).filter(rv=>rv&&rv.bonus&&rv.msg).length>0&&(
+              <div style={{marginBottom:24}}><SecTit>🌿 건강 보호요인 (건강나이↓)</SecTit>
+                {DK.map(k=>r.R[k]).filter(rv=>rv&&rv.bonus&&rv.msg).map((rv,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"flex-start",gap:11,padding:"13px 15px",background:"#ECFDF5",border:`1px solid rgba(0,166,81,.15)`,borderRadius:12,marginBottom:8,boxShadow:SHADOW_SM}}>
+                    <div style={{width:8,height:8,borderRadius:"50%",flexShrink:0,marginTop:8,background:GG_GREEN}}/>
+                    <div style={{fontSize:16,color:GG_TEXT_SUB,lineHeight:1.55}}><strong style={{color:GG_GREEN}}>{rv.e} {rv.l}</strong> — {rv.msg}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* 위험요인 */}
             {DK.map(k=>r.R[k]).filter(rv=>rv&&rv.risk&&rv.msg).length>0&&(
-              <div style={{marginBottom:24}}><SecTit>⚠️ 개선이 필요한 항목</SecTit>
+              <div style={{marginBottom:24}}><SecTit>⚠️ 개선이 필요한 항목 (건강나이↑)</SecTit>
                 {DK.map(k=>r.R[k]).filter(rv=>rv&&rv.risk&&rv.msg).map((rv,i)=>(
                   <div key={i} style={{display:"flex",alignItems:"flex-start",gap:11,padding:"13px 15px",background:"#fff",border:`1px solid ${GG_BORDER}`,borderRadius:12,marginBottom:8,boxShadow:SHADOW_SM}}>
                     <div style={{width:8,height:8,borderRadius:"50%",flexShrink:0,marginTop:8,background:GG_RED}}/>
@@ -769,8 +827,8 @@ export default function App() {
                       ``,
                       `📊 건강나이 분석`,
                       `  실제 나이: ${r.ra}세`,
-                      `  건강 나이: ${r.ha}세 (▲${r.delta}세)`,
-                      `  위험요인: ${r.rc}개 감지`,
+                      `  건강 나이: ${r.ha}세 (${r.delta<0?"▼"+Math.abs(r.delta)+"세 젊음":r.delta===0?"동일":"▲"+r.delta+"세"})`,
+                      `  보호요인: ${r.bc}개 | 위험요인: ${r.rc}개`,
                       ``,
                       risks.length>0?`⚠️ 위험 항목 (${risks.length}개)`:"",
                       risks.length>0?riskLines:"",
