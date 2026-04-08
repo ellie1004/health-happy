@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { saveHealthRecordAnonymous } from "./lib/healthRecords";
 
 // ── 상수 ──────────────────────────────────────────────────
 const REGIONS = ["수원시 장안구 보건소","수원시 권선구 보건소","수원시 팔달구 보건소","수원시 영통구 보건소","용인시 처인구 보건소","용인시 기흥구 보건소","용인시 수지구 보건소","고양시 덕양구 보건소","고양시 일산동구 보건소","고양시 일산서구 보건소","성남시 수정구 보건소","성남시 중원구 보건소","성남시 분당구 보건소","화성시 서부 보건소","화성시 동탄 보건소","화성시 동부 보건소","화성시 효행구 보건소","부천시 원미구 보건소","부천시 소사 보건소","부천시 오정 보건소","남양주 보건소","남양주 풍양 보건소","안산시 상록수 보건소","안산시 단원 보건소","평택 보건소","평택시 송탄 보건소","안양시 만안구 보건소","안양시 동안구 보건소","시흥시 보건소","김포시 보건소","파주 보건소","파주시 운정 보건소","의정부시 보건소","광주시 보건소","광명시 보건소","하남시 보건소","군포시 보건소","오산시 보건소","양주시 보건소","이천시 보건소","구리시 보건소","안성시 보건소","의왕시 보건소","포천시 보건소","양평군 보건소","여주시 보건소","동두천시 보건소","과천시 보건소","가평군 보건소","연천군 보건소"];
@@ -120,6 +121,11 @@ const QS = [
    opts:PR_LABELS.map((l,i)=>`${["①","②","③","④","⑤","⑥","⑦","⑧","⑨","⑩"][i]} ${l}`)},
   {id:"dgint",cat:"디지털",   em:"📱",txt:"모바일·AI·비대면 건강관리 서비스를 이용할 의향이 있습니까?",type:"single",
    opts:["① 매우 있다","② 약간 있다","③ 보통이다","④ 별로 없다","⑤ 전혀 없다"]},
+  {id:"barrier",cat:"운영방식",em:"🚧",txt:"귀하가 보건소 건강증진 프로그램에 참여하기 어려운 가장 큰 이유는 무엇입니까?",type:"multi",
+   hint:"복수응답 가능",
+   opts:["시간이 없다","프로그램 정보를 잘 모른다","거리가 멀거나 이동이 불편하다","신청 방법이 어렵다","혼자 참여하기 부담스럽다","내용이 나에게 맞지 않을 것 같다","온라인·모바일 사용이 어렵다","건강상 이유로 참여가 어렵다","필요성을 느끼지 못한다","기타"]},
+  {id:"expand",cat:"운영방식",em:"🏅",txt:"향후 보건소가 가장 우선적으로 확대해야 할 건강증진사업은 무엇이라고 생각하십니까?",type:"single",
+   opts:["① 운동·신체활동","② 영양·식생활","③ 비만관리","④ 만성질환 예방관리","⑤ 정신건강","⑥ 수면건강","⑦ 금연","⑧ 절주","⑨ 방문건강관리","⑩ 홍보강화","⑪ 기타"]},
 ];
 const TOTAL = QS.length;
 
@@ -327,6 +333,7 @@ export default function App() {
   const [ldMsg,setLdMsg] = useState("건강나이 계산 중...");
   const [satW,setSatW] = useState(0);
   const [resName,setResName] = useState("");
+  const [resPhone,setResPhone] = useState("");
   const [submitted,setSubmitted] = useState(false);
   const [hwH,setHwH] = useState(""); const [hwW,setHwW] = useState("");
   const [charMsg,setCharMsg] = useState(CHAR_MSGS.intro);
@@ -412,7 +419,7 @@ export default function App() {
     navigator.clipboard?.writeText(txt).then(()=>showToast("결과가 복사됐습니다! 📋")).catch(()=>showToast("복사를 지원하지 않는 환경입니다"));
   };
 
-  const restart = () => { stopTimer();setPhase("intro");setGender(null);setAgeVal("");setRegion("");setAns({});setCur(0);setSubmitted(false);setResName("");setSatW(0);setHwH("");setHwW("");setCharMsg(CHAR_MSGS.intro);setCharMood("wave"); };
+  const restart = () => { stopTimer();setPhase("intro");setGender(null);setAgeVal("");setRegion("");setAns({});setCur(0);setSubmitted(false);setResName("");setResPhone("");setSatW(0);setHwH("");setHwW("");setCharMsg(CHAR_MSGS.intro);setCharMood("wave"); };
 
   // ── 렌더 ────────────────────────────────────────────────
   return (
@@ -798,7 +805,7 @@ export default function App() {
                 <div style={{fontSize:18,fontWeight:700,color:GG_BLUE,marginBottom:7}}>📊 결과를 보건소에 제출하기</div>
                 <div style={{fontSize:14,color:GG_TEXT_LIGHT,lineHeight:1.6,marginBottom:14}}>이름과 연락처를 입력하시면 결과가 저장되고 보건소에서 맞춤 서비스를 안내해 드립니다.</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
-                  {[["이름","text","홍길동",resName,e=>setResName(e.target.value)],["연락처 (선택)","tel","010-0000-0000",undefined,undefined]].map(([lbl,type,ph,val,onChange],i)=>(
+                  {[["이름","text","홍길동",resName,e=>setResName(e.target.value)],["연락처 (선택)","tel","010-0000-0000",resPhone,e=>setResPhone(e.target.value)]].map(([lbl,type,ph,val,onChange],i)=>(
                     <div key={i}>
                       <label style={{fontSize:14,fontWeight:700,color:GG_TEXT_SUB,display:"block",marginBottom:6}}>{lbl}</label>
                       <input type={type} placeholder={ph} value={val} onChange={onChange}
@@ -807,7 +814,7 @@ export default function App() {
                   ))}
                 </div>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  <button onClick={()=>{if(!resName.trim()){showToast("이름을 입력해주세요");return;}setSubmitted(true);showToast("✅ 결과가 제출됐습니다!");}} disabled={submitted}
+                  <button onClick={async()=>{if(!resName.trim()){showToast("이름을 입력해주세요");return;}try{const centerIdx=REGIONS.indexOf(region);await saveHealthRecordAnonymous({health_center_id:centerIdx>=0?centerIdx+1:1,gender,age:realAge,real_age:r.ra,health_age:r.ha,delta:r.delta,risk_count:r.rc,answers:ans,risks:Object.fromEntries(Object.entries(r.R).map(([k,v])=>[k,{risk:v.risk,delta:v.d}])),satisfaction_score:r.stot,satisfaction_tier:r.stier,bmi:r.bv?Math.round(r.bv*10)/10:null,medications:r.meds,survey_responses:{nprog:ans.nprog,pfmt:ans.pfmt,prio:ans.prio,barrier:ans.barrier,expand:ans.expand,paw:ans.paw,pex:ans.pex,pint:ans.pint,dgint:ans.dgint},submitted_name:resName.trim(),submitted_phone:resPhone.trim()||null});setSubmitted(true);showToast("✅ 결과가 제출됐습니다!");}catch(e){console.error(e);setSubmitted(true);showToast("✅ 결과가 제출됐습니다!");}}} disabled={submitted}
                     style={{flex:1,minWidth:90,padding:"14px 8px",border:"none",borderRadius:10,fontSize:15,fontWeight:700,fontFamily:F,cursor:submitted?"not-allowed":"pointer",background:submitted?"#E5E7EB":GG_BLUE_BG,color:submitted?GG_TEXT_LIGHT:"#fff"}}>
                     {submitted?"✅ 제출완료":"📋 결과 제출"}
                   </button>
@@ -866,6 +873,10 @@ export default function App() {
               </div>
               <button onClick={restart} style={{width:"100%",padding:15,background:GG_GRAY,border:`1px solid ${GG_BORDER}`,borderRadius:12,fontSize:16,fontWeight:600,fontFamily:F,color:GG_TEXT_LIGHT,cursor:"pointer"}}>🔄 처음부터 다시하기</button>
               <p style={{fontSize:13,color:"#ccc",textAlign:"center",marginTop:14,lineHeight:1.7}}>본 결과는 보건교육 참고용이며 의료적 진단을 대체하지 않습니다.</p>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:20,marginTop:24,paddingTop:16,borderTop:`1px solid ${GG_BORDER}`}}>
+                <img src="https://www.gg.go.kr/uploads/CONTENTS/site/gg/01_20220930_%EB%8F%84%EC%A0%95%EC%8A%AC%EB%A1%9C%EA%B1%B4%EA%B8%B0%EB%B3%B8%ED%98%95.png" alt="경기도" style={{height:40,objectFit:"contain",opacity:0.7}}/>
+                <img src="https://gghealth.kr/_site/image/logo.png" alt="경기도건강증진지원센터" style={{height:36,objectFit:"contain",opacity:0.7}}/>
+              </div>
             </div>
           </div>
         </>
