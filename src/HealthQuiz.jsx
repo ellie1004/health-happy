@@ -117,8 +117,6 @@ const QS = [
   {id:"nprog",cat:"요구도",   em:"📋",txt:"귀하에게 가장 필요한 건강증진 프로그램은?",type:"multi",opts:NP_LABELS},
   {id:"pfmt", cat:"운영방식", em:"🎯",txt:"가장 선호하는 건강증진 프로그램 운영방식은?",type:"single",
    opts:PF_LABELS.map((l,i)=>`${["①","②","③","④","⑤","⑥","⑦"][i]} ${l}`)},
-  {id:"prio", cat:"운영방식", em:"🏅",txt:"보건소가 우선 확대해야 할 건강증진사업은?",type:"single",
-   opts:PR_LABELS.map((l,i)=>`${["①","②","③","④","⑤","⑥","⑦","⑧","⑨","⑩"][i]} ${l}`)},
   {id:"dgint",cat:"디지털",   em:"📱",txt:"모바일·AI·비대면 건강관리 서비스를 이용할 의향이 있습니까?",type:"single",
    opts:["① 매우 있다","② 약간 있다","③ 보통이다","④ 별로 없다","⑤ 전혀 없다"]},
   {id:"barrier",cat:"운영방식",em:"🚧",txt:"귀하가 보건소 건강증진 프로그램에 참여하기 어려운 가장 큰 이유는 무엇입니까?",type:"multi",
