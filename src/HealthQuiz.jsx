@@ -456,9 +456,9 @@ export default function App() {
               </div>
               <div style={{display:"inline-block",background:GG_BLUE,borderRadius:20,padding:"6px 18px",fontSize:13,fontWeight:700,marginBottom:16,color:"#fff"}}>2026 경기도 지역주민 건강조사</div>
               <h1 style={{fontSize:32,fontWeight:900,lineHeight:1.25,marginBottom:12,color:GG_BLUE}}>내 몸 나이는<br/>몇 살일까요?</h1>
-              <p style={{fontSize:16,color:GG_TEXT_SUB,lineHeight:1.7}}>퀴즈쇼 방식으로 알아보는 나의 건강나이<br/>문항별 25초 타이머 · 건강나이 · 맞춤 프로그램 공개</p>
+              <p style={{fontSize:16,color:GG_TEXT_SUB,lineHeight:1.7}}>퀴즈쇼 방식으로 알아보는 나의 건강나이<br/>천천히 답하고 나의 건강나이를 알아보세요</p>
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,margin:"24px 0 0"}}>
-                {[[`${TOTAL}문항`,"퀴즈 수"],["⏱️ 25초","문항별 제한"],["10개","건강영역"],["🎯","건강나이"]].map(([n,l])=>(
+                {[[`${TOTAL}문항`,"설문 수"],["📋","자가체크"],["10개","건강영역"],["🎯","건강나이"]].map(([n,l])=>(
                   <div key={l} style={{background:"#fff",border:`1px solid ${GG_BORDER}`,borderRadius:12,padding:"12px 4px",textAlign:"center",boxShadow:SHADOW_SM}}>
                     <div style={{fontSize:17,fontWeight:800,color:GG_BLUE}}>{n}</div>
                     <div style={{fontSize:11,color:GG_TEXT_LIGHT,marginTop:2}}>{l}</div>
