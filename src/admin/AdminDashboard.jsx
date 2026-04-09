@@ -9,6 +9,38 @@ const GG_GREEN = "#00A651";
 const GG_RED = "#E5342E";
 const F = "'Noto Sans KR','Malgun Gothic',sans-serif";
 
+// 문항 라벨 매핑
+const Q_LABELS = {
+  disease:"현재 앓고 있는 질병",health_p:"건강 인식",checkup:"건강검진 여부",
+  meds:"복용 중인 약",smoke:"흡연",df:"음주 빈도",da:"1회 음주량",
+  salt:"짠 음식",bk:"아침 식사",ins:"가공식품·배달음식",
+  ed:"신체활동 일수",et:"신체활동 시간",bmi:"키/몸무게",
+  slhr:"수면 시간",sld:"수면 장애",hw:"손씻기",vac:"예방접종",
+  sat1:"일상생활 만족",sat2:"생활 활기",sat3:"생활 즐김",
+  sat4:"어려움 극복",sat5:"더불어 사는 삶",sat6:"행복감",
+  paw:"보건소 프로그램 인지도",pex:"프로그램 참여 경험",pint:"참여 의향",
+  nprog:"필요한 프로그램",pfmt:"선호 운영방식",
+  dgint:"디지털 건강관리 의향",barrier:"참여 어려운 이유",expand:"우선 확대 사업"
+};
+
+const LIKERT = ["전혀 아님","그렇지 않다","보통","그렇다","매우 그렇다"];
+const MED_NAMES = ["해당 없음","고혈압약","당뇨약","고지혈증약","심장약","갑상선약","정신건강약","기타 만성질환약"];
+const NP_LABELS = ["금연","절주","영양·식생활","걷기·신체활동","비만·체중관리","만성질환 예방관리","수면건강","구강건강","스트레스·정신건강","감염병 예방","방문건강관리","모바일·AI 건강관리"];
+const PF_LABELS = ["보건소 방문 대면교육","소규모 실습형","지역주민 모임형","온라인 교육","모바일·카카오 중심","가정 방문형","혼합형(대면+온라인)"];
+const BARRIER_LABELS = ["시간이 없다","프로그램 정보를 잘 모른다","거리가 멀거나 이동이 불편하다","신청 방법이 어렵다","혼자 참여하기 부담스럽다","내용이 나에게 맞지 않을 것 같다","온라인·모바일 사용이 어렵다","건강상 이유로 참여가 어렵다","필요성을 느끼지 못한다","기타"];
+
+function formatAnswer(key, val) {
+  if (val === undefined || val === null) return "-";
+  if (key === "meds") return Array.isArray(val) ? val.map(i => MED_NAMES[i] || i).join(", ") : val;
+  if (key === "nprog") return Array.isArray(val) ? val.map(i => NP_LABELS[i] || i).join(", ") : val;
+  if (key === "barrier") return Array.isArray(val) ? val.map(i => BARRIER_LABELS[i] || i).join(", ") : val;
+  if (key === "pfmt") return PF_LABELS[val] || val;
+  if (["sat1","sat2","sat3","sat4","sat5","sat6"].includes(key)) return LIKERT[val] || val;
+  if (key === "bmi" && typeof val === "object") return `${val.h}cm / ${val.w}kg`;
+  if (typeof val === "number") return val;
+  return String(val);
+}
+
 export default function AdminDashboard() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -18,6 +50,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedCenter, setSelectedCenter] = useState(null);
   const [searchName, setSearchName] = useState("");
+  const [detail, setDetail] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -173,7 +206,7 @@ export default function AdminDashboard() {
                     {filtered.length === 0 ? (
                       <tr><td colSpan={11} style={{ padding: 40, textAlign: "center", color: "#999" }}>데이터가 없습니다</td></tr>
                     ) : filtered.map((r, i) => (
-                      <tr key={r.id} style={{ borderBottom: "1px solid #f0f0f0", background: i % 2 ? "#fafbfc" : "#fff" }}>
+                      <tr key={r.id} onClick={() => setDetail(r)} style={{ borderBottom: "1px solid #f0f0f0", background: i % 2 ? "#fafbfc" : "#fff", cursor: "pointer" }} title="클릭하면 상세 응답 보기">
                         <td style={{ padding: "12px", color: "#999" }}>{i + 1}</td>
                         <td style={{ padding: "12px", fontWeight: 600 }}>{r.submitted_name || "-"}</td>
                         <td style={{ padding: "12px" }}>{r.submitted_phone || "-"}</td>
@@ -253,6 +286,81 @@ export default function AdminDashboard() {
           </>
         )}
       </div>
+
+      {/* ── 상세 응답 모달 ── */}
+      {detail && (
+        <div onClick={() => setDetail(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, maxWidth: 600, width: "100%", maxHeight: "85vh", overflow: "auto", boxShadow: "0 16px 48px rgba(0,0,0,.2)" }}>
+            {/* 모달 헤더 */}
+            <div style={{ position: "sticky", top: 0, background: GG_BLUE_BG, color: "#fff", padding: "20px 24px", borderRadius: "20px 20px 0 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 800 }}>{detail.submitted_name || "이름 없음"}</div>
+                <div style={{ fontSize: 13, opacity: 0.8, marginTop: 4 }}>
+                  {detail.gender === "male" ? "남" : "여"} · {detail.age}세 · 건강나이 {detail.health_age}세 (+{detail.delta})
+                </div>
+              </div>
+              <button onClick={() => setDetail(null)} style={{ background: "rgba(255,255,255,.2)", border: "none", color: "#fff", width: 36, height: 36, borderRadius: 10, fontSize: 20, cursor: "pointer" }}>✕</button>
+            </div>
+
+            {/* 요약 */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, padding: "16px 24px", borderBottom: "1px solid #f0f0f0" }}>
+              {[
+                ["건강나이", `${detail.health_age}세`, GG_BLUE],
+                ["위험요인", `${detail.risk_count}개`, detail.risk_count > 3 ? GG_RED : "#F59E0B"],
+                ["만족도", `${detail.satisfaction_score}/30`, GG_GREEN],
+              ].map(([l, v, c], i) => (
+                <div key={i} style={{ textAlign: "center", padding: 10 }}>
+                  <div style={{ fontSize: 12, color: "#999" }}>{l}</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: c }}>{v}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* 전체 응답 목록 */}
+            <div style={{ padding: "16px 24px 24px" }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#333", marginBottom: 12 }}>📋 전체 응답 내역</div>
+              {Object.entries(detail.answers || {}).map(([key, val]) => (
+                <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "10px 0", borderBottom: "1px solid #f5f5f5", gap: 12 }}>
+                  <div style={{ fontSize: 13, color: "#666", fontWeight: 600, minWidth: 100, flexShrink: 0 }}>
+                    {Q_LABELS[key] || key}
+                  </div>
+                  <div style={{ fontSize: 14, color: "#333", textAlign: "right", wordBreak: "break-word" }}>
+                    {formatAnswer(key, val)}
+                  </div>
+                </div>
+              ))}
+
+              {/* 위험요인 */}
+              {detail.risks && Object.keys(detail.risks).length > 0 && (
+                <>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#333", marginTop: 20, marginBottom: 12 }}>⚠️ 위험요인 분석</div>
+                  {Object.entries(detail.risks).map(([key, val]) => (
+                    <div key={key} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #f5f5f5" }}>
+                      <span style={{ fontSize: 13, color: "#666" }}>{Q_LABELS[key] || key}</span>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: val?.risk ? GG_RED : GG_GREEN }}>
+                        {val?.risk ? `⚠️ 위험 (+${val.delta || 0}세)` : "✅ 양호"}
+                      </span>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {/* 설문 응답 */}
+              {detail.survey_responses && Object.keys(detail.survey_responses).length > 0 && (
+                <>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#333", marginTop: 20, marginBottom: 12 }}>📊 설문 응답</div>
+                  {Object.entries(detail.survey_responses).filter(([,v]) => v !== undefined && v !== null).map(([key, val]) => (
+                    <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "8px 0", borderBottom: "1px solid #f5f5f5", gap: 12 }}>
+                      <span style={{ fontSize: 13, color: "#666", fontWeight: 600, minWidth: 100 }}>{Q_LABELS[key] || key}</span>
+                      <span style={{ fontSize: 14, color: "#333", textAlign: "right", wordBreak: "break-word" }}>{formatAnswer(key, val)}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
