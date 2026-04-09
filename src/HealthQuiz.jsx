@@ -623,7 +623,7 @@ export default function App() {
           {/* 하단 네비 */}
           <div style={{position:"sticky",bottom:0,background:"rgba(255,255,255,.97)",backdropFilter:"blur(10px)",borderTop:`1px solid ${GG_BORDER}`,padding:"12px 18px",display:"flex",gap:12,boxShadow:"0 -2px 8px rgba(0,0,0,.04)"}}>
             {cur>0&&<button onClick={prevQ} style={{padding:"15px 20px",border:`1px solid ${GG_BORDER}`,borderRadius:10,background:"#fff",fontSize:16,fontWeight:600,color:GG_TEXT_SUB,cursor:"pointer",fontFamily:F}}>← 이전</button>}
-            <button onClick={nextQ} style={{flex:1,padding:15,background:answered(q)?GG_BLUE_BG:GG_GRAY,color:answered(q)?"#fff":GG_TEXT_LIGHT,border:"none",borderRadius:10,fontSize:18,fontWeight:700,fontFamily:F,cursor:answered(q)?"pointer":"default",boxShadow:answered(q)?"0 4px 16px rgba(0,102,204,.2)":"none",transition:"all .2s"}}>
+            <button onClick={()=>{if(answered(q))nextQ();}} disabled={!answered(q)} style={{flex:1,padding:15,background:answered(q)?GG_BLUE_BG:GG_GRAY,color:answered(q)?"#fff":GG_TEXT_LIGHT,border:"none",borderRadius:10,fontSize:18,fontWeight:700,fontFamily:F,cursor:answered(q)?"pointer":"not-allowed",boxShadow:answered(q)?"0 4px 16px rgba(0,102,204,.2)":"none",transition:"all .2s",opacity:answered(q)?1:0.6}}>
               {cur>=TOTAL-1?"🎯 결과 확인!":"다음 →"}
             </button>
           </div>
