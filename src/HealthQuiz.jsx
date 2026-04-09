@@ -366,19 +366,19 @@ export default function App() {
     },100);
   },[stopTimer,autoNext]);
 
-  useEffect(()=>{ if(phase==="quiz"){startTimer();} return stopTimer; },[cur,phase]);
+  // 타이머 비활성화 — 사용자가 천천히 응답할 수 있도록
+  // useEffect(()=>{ if(phase==="quiz"){startTimer();} return stopTimer; },[cur,phase]);
   useEffect(()=>()=>stopTimer(),[]);
 
   // 봉공이 메시지 업데이트
   useEffect(()=>{
     if(phase==="quiz"){
-      if(tLeft<=7&&tLeft>0){setCharMsg(CHAR_MSGS.quiz_time_low);setCharMood("think");}
-      else if(cur===0){setCharMsg(CHAR_MSGS.quiz_start);setCharMood("wave");}
+      if(cur===0){setCharMsg(CHAR_MSGS.quiz_start);setCharMood("wave");}
       else if(cur===Math.floor(TOTAL/2)){setCharMsg(CHAR_MSGS.quiz_half);setCharMood("happy");}
       else if(cur>=TOTAL-3){setCharMsg(CHAR_MSGS.quiz_almost);setCharMood("cheer");}
       else{setCharMsg(null);setCharMood("normal");}
     }
-  },[cur,phase,tLeft<=7]);
+  },[cur,phase]);
 
   const goLoading = () => {
     stopTimer(); setPhase("loading");
@@ -534,7 +534,7 @@ export default function App() {
                 <span style={{background:GG_BLUE_LIGHT,border:`1px solid ${GG_BLUE}33`,borderRadius:20,padding:"5px 14px",fontSize:13,fontWeight:700,color:GG_BLUE}}>Q{cur+1}/{TOTAL}</span>
                 <CatTag cat={q.cat}/>
               </div>
-              <TimerBar t={tLeft}/>
+              {/* 타이머 제거 */}
             </div>
             <div style={{height:3,background:"#E8F4FD",borderRadius:2,overflow:"hidden"}}>
               <div style={{height:3,background:GG_BLUE_BG,borderRadius:2,width:((cur+1)/TOTAL*100)+"%",transition:"width .4s ease"}}/>
