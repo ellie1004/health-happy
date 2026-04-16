@@ -2,7 +2,24 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { saveHealthRecordAnonymous } from "./lib/healthRecords";
 
 // ── 상수 ──────────────────────────────────────────────────
-const REGIONS = ["수원시 장안구 보건소","수원시 권선구 보건소","수원시 팔달구 보건소","수원시 영통구 보건소","용인시 처인구 보건소","용인시 기흥구 보건소","용인시 수지구 보건소","고양시 덕양구 보건소","고양시 일산동구 보건소","고양시 일산서구 보건소","성남시 수정구 보건소","성남시 중원구 보건소","성남시 분당구 보건소","화성시 서부 보건소","화성시 동탄 보건소","화성시 동부 보건소","화성시 효행구 보건소","부천시 원미구 보건소","부천시 소사 보건소","부천시 오정 보건소","남양주 보건소","남양주 풍양 보건소","안산시 상록수 보건소","안산시 단원 보건소","평택 보건소","평택시 송탄 보건소","안양시 만안구 보건소","안양시 동안구 보건소","시흥시 보건소","김포시 보건소","파주 보건소","파주시 운정 보건소","의정부시 보건소","광주시 보건소","광명시 보건소","하남시 보건소","군포시 보건소","오산시 보건소","양주시 보건소","이천시 보건소","구리시 보건소","안성시 보건소","의왕시 보건소","포천시 보건소","양평군 보건소","여주시 보건소","동두천시 보건소","과천시 보건소","가평군 보건소","연천군 보건소"];
+const REGIONS = ["수원시 장안구 보건소","수원시 권선구 보건소","수원시 팔달구 보건소","수원시 영통구 보건소","용인시 처인구 보건소","용인시 기흥구 보건소","용인시 수지구 보건소","고양시 덕양구 보건소","고양시 일산동구 보건소","고양시 일산서구 보건소","성남시 수정구 보건소","성남시 중원구 보건소","성남시 분당구 보건소","화성시 서부 보건소","화성시 동탄 보건소","화성시 동부 보건소","화성시 효행구 보건소","부천시 원미구 보건소","부천시 소사 보건소","부천시 오정 보건소","남양주 보건소","남양주 풍양 보건소","남양주 동부 보건소","안산시 상록수 보건소","안산시 단원 보건소","평택 보건소","평택시 송탄 보건소","안양시 만안구 보건소","안양시 동안구 보건소","시흥시 보건소","김포시 보건소","파주 보건소","파주시 운정 보건소","의정부시 보건소","광주시 보건소","광명시 보건소","하남시 보건소","군포시 보건소","오산시 보건소","양주시 보건소","이천시 보건소","구리시 보건소","안성시 보건소","의왕시 보건소","포천시 보건소","양평군 보건소","여주시 보건소","동두천시 보건소","과천시 보건소","가평군 보건소","연천군 보건소"];
+// 보건소명 → health_centers 테이블 ID 매핑 (DB ID 변경 없이 REGIONS 순서 변경 대응)
+const REGION_ID_MAP = {
+  "수원시 장안구 보건소":1,"수원시 권선구 보건소":2,"수원시 팔달구 보건소":3,"수원시 영통구 보건소":4,
+  "용인시 처인구 보건소":5,"용인시 기흥구 보건소":6,"용인시 수지구 보건소":7,
+  "고양시 덕양구 보건소":8,"고양시 일산동구 보건소":9,"고양시 일산서구 보건소":10,
+  "성남시 수정구 보건소":11,"성남시 중원구 보건소":12,"성남시 분당구 보건소":13,
+  "화성시 서부 보건소":14,"화성시 동탄 보건소":15,"화성시 동부 보건소":16,"화성시 효행구 보건소":17,
+  "부천시 원미구 보건소":18,"부천시 소사 보건소":19,"부천시 오정 보건소":20,
+  "남양주 보건소":21,"남양주 풍양 보건소":22,"남양주 동부 보건소":51,
+  "안산시 상록수 보건소":23,"안산시 단원 보건소":24,"평택 보건소":25,"평택시 송탄 보건소":26,
+  "안양시 만안구 보건소":27,"안양시 동안구 보건소":28,"시흥시 보건소":29,"김포시 보건소":30,
+  "파주 보건소":31,"파주시 운정 보건소":32,"의정부시 보건소":33,"광주시 보건소":34,
+  "광명시 보건소":35,"하남시 보건소":36,"군포시 보건소":37,"오산시 보건소":38,
+  "양주시 보건소":39,"이천시 보건소":40,"구리시 보건소":41,"안성시 보건소":42,
+  "의왕시 보건소":43,"포천시 보건소":44,"양평군 보건소":45,"여주시 보건소":46,
+  "동두천시 보건소":47,"과천시 보건소":48,"가평군 보건소":49,"연천군 보건소":50
+};
 const MED_ITEMS = [
   {i:0,em:"✅",nm:"해당 없음",sub:"복용약 없음",none:true},
   {i:1,em:"❤️",nm:"고혈압약",sub:"혈압강하제"},
@@ -207,12 +224,12 @@ function calcResult(ans, gender, realAge) {
   const rc = Object.values(R).filter(r=>r.risk).length;
   const bc = Object.values(R).filter(r=>r.bonus).length;
   let delta = 0;
-  Object.values(R).forEach(r=>{ if(r.risk) delta+=(r.d||0); if(r.bonus) delta+=(r.b||0); });
+  Object.values(R).forEach(r=>{ if(r.risk) delta+=(r.d||0); if(r.bonus) delta+=(r.b||0)*1.5; });
   const SATS = ["sat1","sat2","sat3","sat4","sat5","sat6"];
   const stot = SATS.reduce((s,k)=>s+(ans[k]!==undefined?ans[k]+1:3),0);
   if(stot<12) delta+=2;
-  else if(stot>=24) delta-=1;
-  const ha = ra+delta;
+  else if(stot>=24) delta-=1.5;
+  const ha = Math.round(ra+delta);
   const stier = stot>=24?"상위 20% 수준":stot>=18?"상위 40% 수준":stot>=12?"상위 60% 수준":"하위 40% — 정신건강 관리 필요";
   return {R,rc,bc,ra,ha,delta,stot,stier,meds,hasMed,bv};
 }
@@ -333,6 +350,7 @@ export default function App() {
   const [resName,setResName] = useState("");
   const [resPhone,setResPhone] = useState("");
   const [submitted,setSubmitted] = useState(false);
+  const [autoSaved,setAutoSaved] = useState(false);
   const [hwH,setHwH] = useState(""); const [hwW,setHwW] = useState("");
   const [charMsg,setCharMsg] = useState(CHAR_MSGS.intro);
   const [charMood,setCharMood] = useState("wave");
@@ -406,6 +424,23 @@ export default function App() {
   };
 
   const r = phase==="result" ? calcResult(ans,gender,realAge) : null;
+
+  // 결과 화면 진입 시 자동 저장 (이름/연락처 없이)
+  useEffect(()=>{
+    if(phase==="result" && r && !autoSaved){
+      const centerIdx=REGION_ID_MAP[region]||1;
+      saveHealthRecordAnonymous({
+        health_center_id:centerIdx,
+        gender, age:realAge, real_age:r.ra, health_age:r.ha, delta:r.delta,
+        risk_count:r.rc, answers:ans,
+        risks:Object.fromEntries(Object.entries(r.R).map(([k,v])=>[k,{risk:v.risk,delta:v.d}])),
+        satisfaction_score:r.stot, satisfaction_tier:r.stier,
+        bmi:r.bv?Math.round(r.bv*10)/10:null, medications:r.meds,
+        survey_responses:{nprog:ans.nprog,pfmt:ans.pfmt,prio:ans.prio,barrier:ans.barrier,expand:ans.expand,paw:ans.paw,pex:ans.pex,pint:ans.pint,dgint:ans.dgint},
+        submitted_name:null, submitted_phone:null
+      }).then(()=>setAutoSaved(true)).catch(e=>console.error("자동저장 실패:",e));
+    }
+  },[phase,r,autoSaved]);
 
   const copyResult = () => {
     if(!r)return;
@@ -669,6 +704,39 @@ export default function App() {
           </div>
 
           <div style={{padding:"22px 18px"}}>
+            {/* 결과 제출 — 건강나이 바로 아래 */}
+            <div style={{marginBottom:24}}>
+              <div style={{background:"#fff",border:`2px solid ${GG_BLUE}22`,borderRadius:16,padding:"20px 18px",boxShadow:SHADOW_MD}}>
+                <div style={{fontSize:18,fontWeight:700,color:GG_BLUE,marginBottom:7}}>📊 결과를 보건소에 제출하기</div>
+                <div style={{fontSize:14,color:GG_TEXT_LIGHT,lineHeight:1.6,marginBottom:14}}>이름과 연락처를 입력하시면 보건소에서 맞춤 서비스를 안내해 드립니다.</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+                  {[["이름","text","홍길동",resName,e=>setResName(e.target.value)],["연락처 (선택)","tel","010-0000-0000",resPhone,e=>setResPhone(e.target.value)]].map(([lbl,type,ph,val,onChange],i)=>(
+                    <div key={i}>
+                      <label style={{fontSize:14,fontWeight:700,color:GG_TEXT_SUB,display:"block",marginBottom:6}}>{lbl}</label>
+                      <input type={type} placeholder={ph} value={val} onChange={onChange}
+                        style={{width:"100%",padding:"13px 14px",border:`1px solid ${GG_BORDER}`,borderRadius:10,fontFamily:F,fontSize:16,color:GG_TEXT,background:"#fff",boxShadow:SHADOW_SM}}/>
+                    </div>
+                  ))}
+                </div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  <button onClick={async()=>{if(!resName.trim()){showToast("이름을 입력해주세요");return;}try{const centerIdx=REGION_ID_MAP[region]||1;await saveHealthRecordAnonymous({health_center_id:centerIdx,gender,age:realAge,real_age:r.ra,health_age:r.ha,delta:r.delta,risk_count:r.rc,answers:ans,risks:Object.fromEntries(Object.entries(r.R).map(([k,v])=>[k,{risk:v.risk,delta:v.d}])),satisfaction_score:r.stot,satisfaction_tier:r.stier,bmi:r.bv?Math.round(r.bv*10)/10:null,medications:r.meds,survey_responses:{nprog:ans.nprog,pfmt:ans.pfmt,prio:ans.prio,barrier:ans.barrier,expand:ans.expand,paw:ans.paw,pex:ans.pex,pint:ans.pint,dgint:ans.dgint},submitted_name:resName.trim(),submitted_phone:resPhone.trim()||null});setSubmitted(true);showToast("✅ 제출 완료!");}catch(e){console.error(e);setSubmitted(true);showToast("✅ 제출 완료!");}}} disabled={submitted}
+                    style={{flex:1,minWidth:90,padding:"14px 8px",border:"none",borderRadius:10,fontSize:15,fontWeight:700,fontFamily:F,cursor:submitted?"not-allowed":"pointer",background:submitted?"#E5E7EB":GG_BLUE_BG,color:submitted?GG_TEXT_LIGHT:"#fff"}}>
+                    {submitted?"✅ 제출완료":"📋 결과 제출"}
+                  </button>
+                  <button onClick={()=>{
+                    const risks=DK.map(k=>r.R[k]).filter(x=>x&&x.risk);
+                    const riskLines=risks.map(x=>`  ⚠️ ${x.e} ${x.l}: +${x.d}세`).join("\n");
+                    const txt=[`━━━━━━━━━━━━━━━━━━`,`🎯 2026 내 건강나이 측정 결과`,`━━━━━━━━━━━━━━━━━━`,``,`👤 ${gender==="male"?"남성":"여성"} | ${realAge}세 | ${region}`,``,`📊 건강나이 분석`,`  실제 나이: ${r.ra}세`,`  건강 나이: ${r.ha}세 (${r.delta<0?"▼"+Math.abs(r.delta)+"세 젊음":r.delta===0?"동일":"▲"+r.delta+"세"})`,``,`━━━━━━━━━━━━━━━━━━`,`경기도 지역주민 건강수준 알기`].filter(Boolean).join("\n");
+                    if(navigator.share){navigator.share({title:"내 건강나이 결과",text:txt}).catch(()=>{navigator.clipboard?.writeText(txt);showToast("📋 카카오톡에 붙여넣기 해주세요!");});}else{navigator.clipboard?.writeText(txt);showToast("📋 카카오톡에 붙여넣기 해주세요!");}
+                  }}
+                    style={{flex:1,minWidth:90,padding:"14px 8px",border:"none",borderRadius:10,fontSize:15,fontWeight:700,fontFamily:F,cursor:"pointer",background:"#FEE500",color:"#3C1E1E"}}>
+                    💬 카카오 공유
+                  </button>
+                </div>
+                {submitted&&<div style={{marginTop:10,padding:12,background:"#ECFDF5",border:`1px solid rgba(0,166,81,.15)`,borderRadius:10,fontSize:15,color:GG_GREEN,fontWeight:600,textAlign:"center"}}>✅ 제출 완료! 보건소에서 건강증진 프로그램을 안내해 드릴 예정입니다.</div>}
+              </div>
+            </div>
+
             {/* 건강나이 근거 */}
             <div style={{marginBottom:24}}><SecTit>📐 건강나이 계산 근거</SecTit>
               <div style={{background:"#fff",border:`1px solid ${GG_BORDER}`,borderRadius:16,overflow:"hidden",boxShadow:SHADOW_MD}}>
@@ -797,74 +865,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* 제출·공유 */}
             <div style={{marginBottom:24}}>
-              <div style={{background:"#fff",border:`2px solid ${GG_BLUE}22`,borderRadius:16,padding:"20px 18px",marginBottom:14,boxShadow:SHADOW_MD}}>
-                <div style={{fontSize:18,fontWeight:700,color:GG_BLUE,marginBottom:7}}>📊 결과를 보건소에 제출하기</div>
-                <div style={{fontSize:14,color:GG_TEXT_LIGHT,lineHeight:1.6,marginBottom:14}}>이름과 연락처를 입력하시면 결과가 저장되고 보건소에서 맞춤 서비스를 안내해 드립니다.</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
-                  {[["이름","text","홍길동",resName,e=>setResName(e.target.value)],["연락처 (선택)","tel","010-0000-0000",resPhone,e=>setResPhone(e.target.value)]].map(([lbl,type,ph,val,onChange],i)=>(
-                    <div key={i}>
-                      <label style={{fontSize:14,fontWeight:700,color:GG_TEXT_SUB,display:"block",marginBottom:6}}>{lbl}</label>
-                      <input type={type} placeholder={ph} value={val} onChange={onChange}
-                        style={{width:"100%",padding:"13px 14px",border:`1px solid ${GG_BORDER}`,borderRadius:10,fontFamily:F,fontSize:16,color:GG_TEXT,background:"#fff",boxShadow:SHADOW_SM}}/>
-                    </div>
-                  ))}
-                </div>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  <button onClick={async()=>{if(!resName.trim()){showToast("이름을 입력해주세요");return;}try{const centerIdx=REGIONS.indexOf(region);await saveHealthRecordAnonymous({health_center_id:centerIdx>=0?centerIdx+1:1,gender,age:realAge,real_age:r.ra,health_age:r.ha,delta:r.delta,risk_count:r.rc,answers:ans,risks:Object.fromEntries(Object.entries(r.R).map(([k,v])=>[k,{risk:v.risk,delta:v.d}])),satisfaction_score:r.stot,satisfaction_tier:r.stier,bmi:r.bv?Math.round(r.bv*10)/10:null,medications:r.meds,survey_responses:{nprog:ans.nprog,pfmt:ans.pfmt,prio:ans.prio,barrier:ans.barrier,expand:ans.expand,paw:ans.paw,pex:ans.pex,pint:ans.pint,dgint:ans.dgint},submitted_name:resName.trim(),submitted_phone:resPhone.trim()||null});setSubmitted(true);showToast("✅ 결과가 제출됐습니다!");}catch(e){console.error(e);setSubmitted(true);showToast("✅ 결과가 제출됐습니다!");}}} disabled={submitted}
-                    style={{flex:1,minWidth:90,padding:"14px 8px",border:"none",borderRadius:10,fontSize:15,fontWeight:700,fontFamily:F,cursor:submitted?"not-allowed":"pointer",background:submitted?"#E5E7EB":GG_BLUE_BG,color:submitted?GG_TEXT_LIGHT:"#fff"}}>
-                    {submitted?"✅ 제출완료":"📋 결과 제출"}
-                  </button>
-                  <button onClick={()=>{
-                    const risks=DK.map(k=>r.R[k]).filter(x=>x&&x.risk);
-                    const riskLines=risks.map(x=>`  ⚠️ ${x.e} ${x.l}: +${x.d}세`).join("\n");
-                    const safeLines=DK.map(k=>r.R[k]).filter(x=>x&&!x.risk).map(x=>`  ✅ ${x.e} ${x.l}: 양호`).join("\n");
-                    const medStr=r.meds.filter(i=>i!==0).map(i=>MED_ITEMS.find(m=>m.i===i)?.nm).join(", ")||"없음";
-                    const np=(ans.nprog||[]).map(i=>NP_LABELS[i]).join(", ");
-                    const pfmt=ans.pfmt!==undefined?PF_LABELS[ans.pfmt]:"미응답";
-                    const txt=[
-                      `━━━━━━━━━━━━━━━━━━`,
-                      `🎯 2026 내 건강나이 측정 결과`,
-                      `━━━━━━━━━━━━━━━━━━`,
-                      ``,
-                      `👤 ${gender==="male"?"남성":"여성"} | ${realAge}세 | ${region}`,
-                      ``,
-                      `📊 건강나이 분석`,
-                      `  실제 나이: ${r.ra}세`,
-                      `  건강 나이: ${r.ha}세 (${r.delta<0?"▼"+Math.abs(r.delta)+"세 젊음":r.delta===0?"동일":"▲"+r.delta+"세"})`,
-                      `  보호요인: ${r.bc}개 | 위험요인: ${r.rc}개`,
-                      ``,
-                      risks.length>0?`⚠️ 위험 항목 (${risks.length}개)`:"",
-                      risks.length>0?riskLines:"",
-                      ``,
-                      `✅ 양호 항목`,
-                      safeLines,
-                      ``,
-                      `💊 복용약: ${medStr}`,
-                      ``,
-                      `😊 생활만족도: ${r.stot}점/30점`,
-                      `  → ${r.stier}`,
-                      ``,
-                      np?`📋 필요 프로그램: ${np}`:"",
-                      pfmt?`🎯 선호 운영방식: ${pfmt}`:"",
-                      ``,
-                      `━━━━━━━━━━━━━━━━━━`,
-                      `경기도 지역주민 건강수준 알기`,
-                      `보건소 건강증진 프로그램에 참여해보세요!`,
-                    ].filter(l=>l!==false&&l!=="").join("\n");
-                    if(navigator.share){navigator.share({title:"내 건강나이 결과",text:txt}).catch(()=>{navigator.clipboard?.writeText(txt);showToast("📋 카카오톡에 붙여넣기 해주세요!");});}else{navigator.clipboard?.writeText(txt);showToast("📋 카카오톡에 붙여넣기 해주세요!");}
-                  }}
-                    style={{flex:1,minWidth:90,padding:"14px 8px",border:"none",borderRadius:10,fontSize:15,fontWeight:700,fontFamily:F,cursor:"pointer",background:"#FEE500",color:"#3C1E1E"}}>
-                    💬 카카오 공유
-                  </button>
-                  <button onClick={copyResult}
-                    style={{flex:1,minWidth:90,padding:"14px 8px",border:`1px solid ${GG_BORDER}`,borderRadius:10,fontSize:15,fontWeight:600,fontFamily:F,cursor:"pointer",background:"#fff",color:GG_TEXT_SUB}}>
-                    📄 복사
-                  </button>
-                </div>
-                {submitted&&<div style={{marginTop:10,padding:12,background:"#ECFDF5",border:`1px solid rgba(0,166,81,.15)`,borderRadius:10,fontSize:15,color:GG_GREEN,fontWeight:600,textAlign:"center"}}>✅ 제출 완료! 보건소에서 건강증진 프로그램을 안내해 드릴 예정입니다.</div>}
-              </div>
               <div style={{display:"flex",gap:10,marginBottom:10}}>
                 <button onClick={copyResult} style={{flex:1,padding:17,background:GG_BLUE_BG,color:"#fff",border:"none",borderRadius:12,fontSize:17,fontWeight:700,fontFamily:F,cursor:"pointer",boxShadow:"0 4px 16px rgba(0,102,204,.2)"}}>📋 결과 복사</button>
                 <button onClick={()=>window.print()} style={{flex:1,padding:17,background:"#fff",color:GG_TEXT_SUB,border:`1px solid ${GG_BORDER}`,borderRadius:12,fontSize:17,fontWeight:600,fontFamily:F,cursor:"pointer",boxShadow:SHADOW_SM}}>🖨️ 인쇄/저장</button>
