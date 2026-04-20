@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { saveHealthRecordAnonymous } from "./lib/healthRecords";
+import { saveHealthRecordAnonymous, savePartialRecord } from "./lib/healthRecords";
 
 // ── 상수 ──────────────────────────────────────────────────
 const REGIONS = ["수원시 장안구 보건소","수원시 권선구 보건소","수원시 팔달구 보건소","수원시 영통구 보건소","용인시 처인구 보건소","용인시 기흥구 보건소","용인시 수지구 보건소","고양시 덕양구 보건소","고양시 일산동구 보건소","고양시 일산서구 보건소","성남시 수정구 보건소","성남시 중원구 보건소","성남시 분당구 보건소","화성시 서부 보건소","화성시 동탄 보건소","화성시 동부 보건소","화성시 효행구 보건소","부천시 원미구 보건소","부천시 소사 보건소","부천시 오정 보건소","남양주 보건소","남양주 풍양 보건소","남양주 동부 보건소","안산시 상록수 보건소","안산시 단원 보건소","평택 보건소","평택시 송탄 보건소","안양시 만안구 보건소","안양시 동안구 보건소","시흥시 보건소","김포시 보건소","파주 보건소","파주시 운정 보건소","의정부시 보건소","광주시 보건소","광명시 보건소","하남시 보건소","군포시 보건소","오산시 보건소","양주시 보건소","이천시 보건소","구리시 보건소","안성시 보건소","의왕시 보건소","포천시 보건소","양평군 보건소","여주시 보건소","동두천시 보건소","과천시 보건소","가평군 보건소","연천군 보건소"];
@@ -356,6 +356,8 @@ export default function App() {
   const [charMood,setCharMood] = useState("wave");
   const topRef = useRef(null);
   const timerRef = useRef(null);
+  const autoSavingRef = useRef(false);
+  const partialSavedRef = useRef(false);
 
   const realAge = parseInt(ageVal)||null;
   const ready = gender && realAge && realAge>=1 && realAge<=120 && region;
@@ -425,22 +427,70 @@ export default function App() {
 
   const r = phase==="result" ? calcResult(ans,gender,realAge) : null;
 
-  // 결과 화면 진입 시 자동 저장 (이름/연락처 없이)
+  // 결과 화면 진입 시 자동 저장 (이름/연락처 없이) — 중복 방지 ref 가드
   useEffect(()=>{
-    if(phase==="result" && r && !autoSaved){
-      const centerIdx=REGION_ID_MAP[region]||1;
-      saveHealthRecordAnonymous({
-        health_center_id:centerIdx,
-        gender, age:realAge, real_age:r.ra, health_age:r.ha, delta:r.delta,
-        risk_count:r.rc, answers:ans,
-        risks:Object.fromEntries(Object.entries(r.R).map(([k,v])=>[k,{risk:v.risk,delta:v.d}])),
-        satisfaction_score:r.stot, satisfaction_tier:r.stier,
-        bmi:r.bv?Math.round(r.bv*10)/10:null, medications:r.meds,
-        survey_responses:{nprog:ans.nprog,pfmt:ans.pfmt,prio:ans.prio,barrier:ans.barrier,expand:ans.expand,paw:ans.paw,pex:ans.pex,pint:ans.pint,dgint:ans.dgint},
-        submitted_name:null, submitted_phone:null
-      }).then(()=>setAutoSaved(true)).catch(e=>console.error("자동저장 실패:",e));
-    }
-  },[phase,r,autoSaved]);
+    if(phase!=="result" || autoSaved || autoSavingRef.current) return;
+    const rr=calcResult(ans,gender,realAge);
+    if(!rr) return;
+    autoSavingRef.current=true;
+    const centerIdx=REGION_ID_MAP[region]||1;
+    saveHealthRecordAnonymous({
+      healthCenterId:centerIdx,
+      gender, age:realAge, realAge:rr.ra, healthAge:rr.ha, delta:rr.delta,
+      riskCount:rr.rc, answers:ans,
+      risks:Object.fromEntries(Object.entries(rr.R).map(([k,v])=>[k,{risk:v.risk,delta:v.d}])),
+      satisfactionScore:rr.stot, satisfactionTier:rr.stier,
+      bmi:rr.bv?Math.round(rr.bv*10)/10:null, medications:rr.meds,
+      surveyResponses:{nprog:ans.nprog,pfmt:ans.pfmt,prio:ans.prio,barrier:ans.barrier,expand:ans.expand,paw:ans.paw,pex:ans.pex,pint:ans.pint,dgint:ans.dgint},
+      submittedName:null, submittedPhone:null
+    }).then(()=>{setAutoSaved(true);partialSavedRef.current=true;})
+      .catch(e=>{autoSavingRef.current=false;console.error("자동저장 실패:",e);});
+  },[phase,autoSaved,ans,gender,realAge,region]);
+
+  // 중도이탈 저장 — 설문 진행 중 브라우저를 닫거나 이탈할 때 답변 보관
+  useEffect(()=>{
+    const handler=()=>{
+      if(partialSavedRef.current) return;
+      if(phase!=="quiz") return;
+      const answeredCount=Object.keys(ans||{}).length;
+      if(answeredCount<1) return;
+      const centerIdx=REGION_ID_MAP[region]||null;
+      if(!centerIdx) return;
+      // sendBeacon 으로 fire-and-forget
+      try{
+        const url=`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/health_records`;
+        const payload=JSON.stringify({
+          user_id:null,
+          health_center_id:centerIdx,
+          gender:gender||null,
+          age:realAge||null,
+          answers:ans,
+          survey_responses:{_partial:true,_exitedAt:new Date().toISOString(),_currentQuestion:cur},
+        });
+        const blob=new Blob([payload],{type:"application/json"});
+        // sendBeacon 은 헤더 커스텀이 제한적 — 대신 fetch keepalive 사용
+        fetch(url,{
+          method:"POST",
+          headers:{
+            "Content-Type":"application/json",
+            "apikey":import.meta.env.VITE_SUPABASE_ANON_KEY,
+            "Authorization":`Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            "Prefer":"return=minimal",
+          },
+          body:payload,
+          keepalive:true,
+        }).catch(()=>{});
+        partialSavedRef.current=true;
+      }catch(e){console.error("중도이탈 저장 실패:",e);}
+    };
+    window.addEventListener("pagehide",handler);
+    window.addEventListener("beforeunload",handler);
+    document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")handler();});
+    return ()=>{
+      window.removeEventListener("pagehide",handler);
+      window.removeEventListener("beforeunload",handler);
+    };
+  },[phase,ans,gender,realAge,region,cur]);
 
   const copyResult = () => {
     if(!r)return;
@@ -719,7 +769,26 @@ export default function App() {
                   ))}
                 </div>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  <button onClick={async()=>{if(!resName.trim()){showToast("이름을 입력해주세요");return;}try{const centerIdx=REGION_ID_MAP[region]||1;await saveHealthRecordAnonymous({health_center_id:centerIdx,gender,age:realAge,real_age:r.ra,health_age:r.ha,delta:r.delta,risk_count:r.rc,answers:ans,risks:Object.fromEntries(Object.entries(r.R).map(([k,v])=>[k,{risk:v.risk,delta:v.d}])),satisfaction_score:r.stot,satisfaction_tier:r.stier,bmi:r.bv?Math.round(r.bv*10)/10:null,medications:r.meds,survey_responses:{nprog:ans.nprog,pfmt:ans.pfmt,prio:ans.prio,barrier:ans.barrier,expand:ans.expand,paw:ans.paw,pex:ans.pex,pint:ans.pint,dgint:ans.dgint},submitted_name:resName.trim(),submitted_phone:resPhone.trim()||null});setSubmitted(true);showToast("✅ 제출 완료!");}catch(e){console.error(e);setSubmitted(true);showToast("✅ 제출 완료!");}}} disabled={submitted}
+                  <button onClick={async()=>{
+                    if(!resName.trim()){showToast("이름을 입력해주세요");return;}
+                    const centerIdx=REGION_ID_MAP[region]||1;
+                    try{
+                      await saveHealthRecordAnonymous({
+                        healthCenterId:centerIdx,gender,age:realAge,
+                        realAge:r.ra,healthAge:r.ha,delta:r.delta,riskCount:r.rc,
+                        answers:ans,
+                        risks:Object.fromEntries(Object.entries(r.R).map(([k,v])=>[k,{risk:v.risk,delta:v.d}])),
+                        satisfactionScore:r.stot,satisfactionTier:r.stier,
+                        bmi:r.bv?Math.round(r.bv*10)/10:null,medications:r.meds,
+                        surveyResponses:{nprog:ans.nprog,pfmt:ans.pfmt,prio:ans.prio,barrier:ans.barrier,expand:ans.expand,paw:ans.paw,pex:ans.pex,pint:ans.pint,dgint:ans.dgint},
+                        submittedName:resName.trim(),submittedPhone:resPhone.trim()||null
+                      });
+                      setSubmitted(true);partialSavedRef.current=true;showToast("✅ 제출 완료!");
+                    }catch(e){
+                      console.error("제출 실패:",e);
+                      showToast("❌ 제출 실패 — 잠시 후 다시 시도해주세요 ("+(e?.message||"오류")+")");
+                    }
+                  }} disabled={submitted}
                     style={{flex:1,minWidth:90,padding:"14px 8px",border:"none",borderRadius:10,fontSize:15,fontWeight:700,fontFamily:F,cursor:submitted?"not-allowed":"pointer",background:submitted?"#E5E7EB":GG_BLUE_BG,color:submitted?GG_TEXT_LIGHT:"#fff"}}>
                     {submitted?"✅ 제출완료":"📋 결과 제출"}
                   </button>

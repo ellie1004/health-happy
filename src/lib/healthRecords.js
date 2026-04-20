@@ -55,16 +55,55 @@ export async function saveHealthRecord({
 }
 
 /**
- * 비로그인 사용자도 저장할 수 있도록 — 익명 삽입용 RPC
- * (RLS 우회가 필요하면 Supabase에서 anon INSERT 정책 추가 필요)
+ * 비로그인 사용자도 저장할 수 있도록 — 익명 삽입 (saveHealthRecord 와 동일한 camelCase 입력)
  */
-export async function saveHealthRecordAnonymous(record) {
-  const { error } = await supabase
+export async function saveHealthRecordAnonymous(input) {
+  const record = {
+    user_id: null,
+    health_center_id: input.healthCenterId,
+    gender: input.gender ?? null,
+    age: input.age ?? null,
+    real_age: input.realAge ?? null,
+    health_age: input.healthAge ?? null,
+    delta: input.delta ?? null,
+    risk_count: input.riskCount ?? null,
+    answers: input.answers ?? {},
+    risks: input.risks ?? {},
+    satisfaction_score: input.satisfactionScore ?? null,
+    satisfaction_tier: input.satisfactionTier ?? null,
+    bmi: input.bmi ?? null,
+    medications: input.medications ?? [],
+    survey_responses: input.surveyResponses ?? {},
+    submitted_name: input.submittedName ?? null,
+    submitted_phone: input.submittedPhone ?? null,
+  };
+  const { data, error } = await supabase
+    .from('health_records')
+    .insert(record)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * 중도이탈/부분저장 — 진행 중 답변이라도 DB에 보관
+ * 결과화면까지 도달하지 못해도 answers만 기록해 둡니다.
+ */
+export async function savePartialRecord({ healthCenterId, gender, age, answers }) {
+  if (!healthCenterId) return null;
+  const { data, error } = await supabase
     .from('health_records')
     .insert({
-      ...record,
       user_id: null,
-    });
+      health_center_id: healthCenterId,
+      gender: gender || null,
+      age: age || null,
+      answers: answers || {},
+      survey_responses: { _partial: true },
+    })
+    .select()
+    .single();
 
   if (error) throw error;
   return data;
